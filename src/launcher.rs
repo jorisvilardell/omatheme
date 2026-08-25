@@ -17,6 +17,10 @@ const DEFAULT_COMMAND: &str = "omarchy-menu";
 pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<()> {
     let previous = current_command()?;
     let declared = loaded.profile.launcher.as_ref().filter(|_| enabled);
+    // A launcher is a long-lived Quickshell process: new QML on disk does
+    // nothing until it is restarted, and the old process answers keybindings
+    // with "Function not found" for verbs it does not know yet.
+    let mut app_changed = false;
     let command = match declared {
         Some(launcher) => launcher.command.clone(),
         None => DEFAULT_COMMAND.to_string(),
@@ -61,6 +65,12 @@ pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<(
     }
 
     if previous.as_deref() == Some(command.as_str()) {
+        if app_changed && command != DEFAULT_COMMAND {
+            runner.step(format!("restart {command}"));
+            if !runner.dry_run {
+                let _ = Command::new(&command).arg("restart").status();
+            }
+        }
         return Ok(());
     }
 
