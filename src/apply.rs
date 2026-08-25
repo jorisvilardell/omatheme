@@ -119,7 +119,15 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
     // without re-instantiating the surface, so a changed lock screen only shows
     // up after the shell is restarted.
     if crate::lock::apply(loaded, runner, on(Part::Lock))? {
-        runner.run("omarchy-restart-shell", &[])?;
+        // The shell refuses to restart while the session is locked, which is
+        // the right call — restarting it under a lock screen is how you get
+        // locked out. The new lock screen lands on the next restart instead,
+        // so this is a warning, not a failed apply.
+        if runner.run("omarchy-restart-shell", &[]).is_err() {
+            eprintln!(
+                "omatheme: could not restart the shell — the new lock screen applies once it does"
+            );
+        }
     }
     crate::launcher::apply(loaded, runner, on(Part::Launcher))?;
 
