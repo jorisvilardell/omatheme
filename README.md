@@ -140,10 +140,75 @@ Parts are `wallpaper`, `font`, `shell`, `menu`, `lock`, `launcher` and
 one. A part switched off is treated as if the theme never declared it, so you
 get Omarchy's default rather than the previous theme's leftovers.
 
+## Installing themes and payloads
+
+`omatheme install <url>` takes a git URL and works out what it is:
+
+```bash
+omatheme install https://github.com/axelfrache/omarchy-spiderverse-theme   # a theme
+omatheme install https://github.com/axelfrache/omarchy-spiderverse         # a payload
+```
+
+A repository with a `colors.toml` is a theme and is handed to Omarchy. One with
+an `omatheme.toml` is a *payload* — a lock screen, a launcher, the non-colour
+half of a look — and is grafted onto a theme, so it follows that theme instead
+of being installed once and forever.
+
+A payload names its own theme, and `--theme` overrides it:
+
+```bash
+omatheme install https://github.com/axelfrache/omarchy-spiderverse --theme kanagawa
+```
+
+### `omatheme.toml`
+
+Put it at the root of a payload repository. The paths are relative to the
+repository; omatheme copies them into the theme directory and writes the
+matching `profile.toml`.
+
+```toml
+[payload]
+name = "Spiderverse"
+description = "Radial web launcher and lock screen"
+theme = "spiderverse"          # default target
+
+[lock]
+overlay = "lock-plugin/qml"    # presentational QML only, never Service.qml
+
+[launcher]
+command = "omarchy-spiderverse-launcher"
+quickshell = { source = "launcher/quickshell", name = "spiderverse-launcher" }
+bin = "launcher/bin/omarchy-spiderverse-launcher"
+autostart = true
+verbs = { menu = "menu", apps = "toggle" }
+```
+
+An `overlay` containing `Service.qml` is refused: the lock service carries the
+PAM and `ext-session-lock-v1` logic and must come from the running Omarchy, not
+from a repository that would freeze it.
+
+If the theme already has a `profile.toml`, the generated one is written beside
+it as `profile.omatheme.toml` rather than overwriting the author's.
+
+### Launcher verbs
+
+Launchers disagree on vocabulary: Omarchy's menu says `toggle` and
+`toggle apps`, another may say `menu` and `toggle`. Keybindings speak one
+vocabulary and `verbs` maps it onto whatever the launcher accepts:
+
+```lua
+o.bind("SUPER + SPACE", "Menu", "omatheme launcher menu")
+o.bind("SUPER + ALT + SPACE", "Apps", "omatheme launcher apps")
+```
+
+Unmapped verbs are passed through unchanged, and with no themed launcher both
+fall back to `omarchy-menu`.
+
 ## Commands
 
 | Command | Effect |
 | --- | --- |
+| `omatheme install <url> [--theme T]` | Install a theme, or graft a payload onto one |
 | `omatheme apply <theme>` | Switch theme, then apply its profile |
 | `omatheme sync` | Apply the current theme's profile without switching |
 | `omatheme hook [theme]` | Entry point for the Omarchy `theme-set` hook |

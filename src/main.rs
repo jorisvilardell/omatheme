@@ -3,6 +3,7 @@ mod doctor;
 mod launcher;
 mod lock;
 mod paths;
+mod payload;
 mod profile;
 mod scaffold;
 mod settings;
@@ -49,6 +50,17 @@ enum Cmd {
     },
     /// Install this binary as the Omarchy `theme-set` hook.
     InstallHook,
+    /// Install a theme, or graft a launcher/lock payload onto one.
+    ///
+    /// Paste a theme repository URL and it goes to Omarchy; paste a payload
+    /// repository (one with an omatheme.toml) and it is linked to a theme.
+    Install {
+        /// Git URL of the theme or payload repository.
+        url: String,
+        /// Theme to link a payload to, when its manifest does not name one.
+        #[arg(long, value_name = "THEME")]
+        theme: Option<String>,
+    },
     /// Create a theme skeleton.
     New {
         /// Theme name.
@@ -115,6 +127,7 @@ fn run() -> Result<()> {
             scaffold::new_theme(&name, from.as_deref(), cli.dry_run)?;
             Ok(())
         }
+        Cmd::Install { url, theme } => payload::install(&url, theme.as_deref(), cli.dry_run),
         Cmd::Launcher { args } => launcher::dispatch(&args),
         Cmd::Doctor => {
             let clean = doctor::run()?;

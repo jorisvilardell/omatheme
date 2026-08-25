@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -83,6 +84,18 @@ pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<(
         }
         std::fs::write(&path, format!("{command}\n"))
             .with_context(|| format!("writing {}", path.display()))?;
+
+        let verbs = path.with_file_name("launcher.verbs");
+        let mapping: String = declared
+            .map(|launcher| {
+                launcher
+                    .verbs
+                    .iter()
+                    .map(|(verb, mapped)| format!("{verb}\t{mapped}\n"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        std::fs::write(&verbs, mapping).with_context(|| format!("writing {}", verbs.display()))?;
     }
 
     let autostart = declared
@@ -98,15 +111,52 @@ pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<(
     Ok(())
 }
 
-/// Run the current theme's launcher. `omatheme launcher toggle` is what the
+/// Run the current theme's launcher. `omatheme launcher menu` is what the
 /// keybinding calls, so switching themes never means rebinding a key.
+///
+/// Launchers do not agree on verbs — Omarchy's menu says `toggle` and
+/// `toggle apps`, another may say `menu` and `toggle`. The keybinding speaks
+/// one vocabulary and the profile maps it onto whatever the launcher accepts.
 pub fn dispatch(args: &[String]) -> Result<()> {
     let command = current_command()?.unwrap_or_else(|| DEFAULT_COMMAND.to_string());
+    let verbs = current_verbs()?;
+
+    let mut translated: Vec<String> = Vec::new();
+    if let Some((first, rest)) = args.split_first() {
+        match verbs.get(first.as_str()) {
+            Some(mapped) => translated.extend(mapped.split_whitespace().map(String::from)),
+            None => translated.push(first.clone()),
+        }
+        translated.extend(rest.iter().cloned());
+    }
+
     let status = Command::new(&command)
-        .args(args)
+        .args(&translated)
         .status()
         .with_context(|| format!("running {command}"))?;
     std::process::exit(status.code().unwrap_or(1));
+}
+
+/// Verb map of the launcher in use. Omarchy's menu is the fallback, so its
+/// mapping is built in: the root menu is `toggle`, the app list `toggle apps`.
+fn current_verbs() -> Result<BTreeMap<String, String>> {
+    let path = state_file()?.with_file_name("launcher.verbs");
+    let raw = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut verbs: BTreeMap<String, String> = BTreeMap::new();
+
+    for line in raw.lines() {
+        if let Some((verb, mapped)) = line.split_once('\t') {
+            verbs.insert(verb.to_string(), mapped.to_string());
+        }
+    }
+
+    if verbs.is_empty()
+        && current_command()?.as_deref().unwrap_or(DEFAULT_COMMAND) == DEFAULT_COMMAND
+    {
+        verbs.insert("menu".into(), "toggle".into());
+        verbs.insert("apps".into(), "toggle apps".into());
+    }
+    Ok(verbs)
 }
 
 fn current_command() -> Result<Option<String>> {

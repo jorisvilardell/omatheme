@@ -83,6 +83,11 @@ pub struct Launcher {
     /// Run `<command> start` right after applying the theme.
     #[serde(default)]
     pub autostart: Option<bool>,
+    /// Maps the verbs a keybinding uses onto the ones this launcher speaks,
+    /// e.g. `menu = "menu"`, `apps = "toggle"`. Verbs with no entry are passed
+    /// through unchanged.
+    #[serde(default)]
+    pub verbs: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]

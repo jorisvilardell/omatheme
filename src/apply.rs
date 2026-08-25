@@ -80,7 +80,12 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
     // than the previous theme's leftovers.
     let on = |part| settings.enabled(&loaded.theme, part);
 
-    if let Some(wallpaper) = &loaded.profile.wallpaper.as_ref().filter(|_| on(Part::Wallpaper)) {
+    if let Some(wallpaper) = &loaded
+        .profile
+        .wallpaper
+        .as_ref()
+        .filter(|_| on(Part::Wallpaper))
+    {
         let image = loaded.asset(&wallpaper.default)?;
         let current = paths::current_state()?.join("background");
         let already = std::fs::read_link(&current)
@@ -109,13 +114,21 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
     apply_shell(loaded, runner, on(Part::Shell))?;
     apply_menu(loaded, runner, on(Part::Menu))?;
 
-    // No shell restart anywhere in here: the shell watches
-    // ~/.config/omarchy/plugins/ with inotify, shell.json and the menu
-    // extension with FileView.watchChanges. Everything lands live.
-    crate::lock::apply(loaded, runner, on(Part::Lock))?;
+    // shell.json and the menu extension are watched and land live, but the lock
+    // plugin is a `keepLoaded` service: the inotify rescan re-registers it
+    // without re-instantiating the surface, so a changed lock screen only shows
+    // up after the shell is restarted.
+    if crate::lock::apply(loaded, runner, on(Part::Lock))? {
+        runner.run("omarchy-restart-shell", &[])?;
+    }
     crate::launcher::apply(loaded, runner, on(Part::Launcher))?;
 
-    if let Some(commands) = &loaded.profile.commands.as_ref().filter(|_| on(Part::Commands)) {
+    if let Some(commands) = &loaded
+        .profile
+        .commands
+        .as_ref()
+        .filter(|_| on(Part::Commands))
+    {
         for command in &commands.post {
             runner.step(format!("run (post) {command}"));
             if runner.dry_run {
