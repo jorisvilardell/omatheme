@@ -16,7 +16,7 @@ impl Runner {
         Self { dry_run }
     }
 
-    fn step(&self, msg: impl AsRef<str>) {
+    pub fn step(&self, msg: impl AsRef<str>) {
         let prefix = if self.dry_run { "would" } else { "" };
         let msg = msg.as_ref();
         if prefix.is_empty() {
@@ -102,6 +102,12 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
     apply_shell(loaded, runner)?;
     apply_menu(loaded, runner)?;
 
+    // No shell restart anywhere in here: the shell watches
+    // ~/.config/omarchy/plugins/ with inotify, shell.json and the menu
+    // extension with FileView.watchChanges. Everything lands live.
+    crate::lock::apply(loaded, runner)?;
+    crate::launcher::apply(loaded, runner)?;
+
     if let Some(commands) = &loaded.profile.commands {
         for command in &commands.post {
             runner.step(format!("run (post) {command}"));
@@ -123,6 +129,10 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
 
     Ok(())
 }
+
+/// Top-level `shell.json` keys the running shell owns. They are never restored
+/// from the baseline — they reflect live plugin state, not theme intent.
+const RUNTIME_OWNED_KEYS: &[&str] = &["plugins", "disabledPlugins"];
 
 /// `shell.json` is patched from an untouched baseline, so switching themes
 /// never accumulates the previous theme's overrides.
@@ -154,6 +164,30 @@ fn apply_shell(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
 
     let mut doc: Json =
         serde_json::from_str(&baseline).with_context(|| format!("parsing {}", base.display()))?;
+
+    // The shell writes plugin enablement into shell.json itself
+    // (`omarchy plugin enable` sets `plugins[]` and `disabledPlugins[]`).
+    // Restoring those from the baseline would silently disable the lock clone
+    // this run just installed, so carry the live values over.
+    if let Ok(live_doc) = std::fs::read_to_string(&live)
+        .map_err(anyhow::Error::from)
+        .and_then(|raw| Ok(serde_json::from_str::<Json>(&raw)?))
+    {
+        for key in RUNTIME_OWNED_KEYS {
+            match live_doc.get(key) {
+                Some(value) => {
+                    if let Some(object) = doc.as_object_mut() {
+                        object.insert((*key).to_string(), value.clone());
+                    }
+                }
+                None => {
+                    if let Some(object) = doc.as_object_mut() {
+                        object.remove(*key);
+                    }
+                }
+            }
+        }
+    }
 
     if let Some(shell) = &loaded.profile.shell {
         for (dotted, value) in &shell.patch {

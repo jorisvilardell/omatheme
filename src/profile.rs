@@ -19,6 +19,10 @@ pub struct Profile {
     #[serde(default)]
     pub menu: Option<Menu>,
     #[serde(default)]
+    pub lock: Option<Lock>,
+    #[serde(default)]
+    pub launcher: Option<Launcher>,
+    #[serde(default)]
     pub commands: Option<Commands>,
 }
 
@@ -52,6 +56,42 @@ pub struct Menu {
     /// Path relative to the theme directory of a replacement
     /// `omarchy-menu.jsonc`.
     pub extension: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lock {
+    /// Directory, relative to the theme, whose files are overlaid on a fresh
+    /// clone of the `omarchy.lock` plugin. Ship only the presentational files
+    /// (`LockView.qml` and what it pulls in) — never `Service.qml`, which
+    /// carries the PAM and session-lock logic.
+    pub overlay: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Launcher {
+    /// Command `omatheme launcher <verb>` forwards to. Defaults to
+    /// `omarchy-menu` when no theme declares one.
+    pub command: String,
+    /// Quickshell app to install under `~/.config/quickshell/<name>`.
+    #[serde(default)]
+    pub quickshell: Option<QuickshellApp>,
+    /// Helper script to install into `~/.local/bin`, relative to the theme.
+    #[serde(default)]
+    pub bin: Option<String>,
+    /// Run `<command> start` right after applying the theme.
+    #[serde(default)]
+    pub autostart: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuickshellApp {
+    /// Directory relative to the theme, containing `shell.qml`.
+    pub source: String,
+    /// Name under `~/.config/quickshell/`, the one `qs -c <name>` takes.
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]

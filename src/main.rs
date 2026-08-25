@@ -1,5 +1,7 @@
 mod apply;
 mod doctor;
+mod launcher;
+mod lock;
 mod paths;
 mod profile;
 mod scaffold;
@@ -54,6 +56,13 @@ enum Cmd {
         #[arg(long, value_name = "IMAGE")]
         from: Option<PathBuf>,
     },
+    /// Run the current theme's launcher — bind SUPER + SPACE to
+    /// `omatheme launcher toggle` and it follows the theme by itself.
+    Launcher {
+        /// Verb forwarded to the launcher (toggle, start, stop, ...).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Report colour literals that will not follow a theme switch.
     Doctor,
 }
@@ -105,6 +114,7 @@ fn run() -> Result<()> {
             scaffold::new_theme(&name, from.as_deref(), cli.dry_run)?;
             Ok(())
         }
+        Cmd::Launcher { args } => launcher::dispatch(&args),
         Cmd::Doctor => {
             let clean = doctor::run()?;
             if !clean {

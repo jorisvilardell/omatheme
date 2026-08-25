@@ -63,6 +63,18 @@ patch = { "bar.transparent" = true, "idle.lock" = 600 }
 # Replacement for ~/.config/omarchy/extensions/omarchy-menu.jsonc.
 extension = "menu.jsonc"
 
+[lock]
+# Directory of presentational QML overlaid on a fresh clone of omarchy.lock.
+overlay = "lock"
+
+[launcher]
+# What `omatheme launcher <verb>` forwards to. Bind SUPER + SPACE to
+# `omatheme launcher toggle` once and the launcher follows the theme.
+command = "omarchy-spiderverse-launcher"
+bin = "launcher/bin/omarchy-spiderverse-launcher"
+quickshell = { source = "launcher/quickshell", name = "spiderverse-launcher" }
+autostart = true
+
 [commands]
 # Escape hatch, run last, with $OMATHEME_THEME and $OMATHEME_THEME_DIR set.
 post = ["omarchy restart shell"]
@@ -76,6 +88,37 @@ first run), never from the previous theme's result. Switching from a theme
 that sets `bar.transparent = true` to one that says nothing restores your
 original value instead of inheriting it.
 
+## Lock screen and launcher
+
+On Omarchy Quattro the lock screen is a Quickshell *service* plugin, not
+hyprlock. `Service.qml` holds the PAM and `ext-session-lock-v1` logic;
+`LockView.qml` and what it pulls in are the visual layer. The only supported
+way to restyle it is `omarchy plugin clone omarchy.lock`, which forks both
+files — and a theme shipping its own `Service.qml` would freeze that security
+logic at whatever Omarchy version it was authored against.
+
+So omatheme reclones from the *installed* Omarchy on every switch and overlays
+only the theme's presentational files on top. It marks the clone as its own
+(`.omatheme-managed`), and on a theme with no `[lock]` it disables the clone,
+deletes it, and re-enables `omarchy.lock` — the stock lock screen comes back
+untouched. A clone you made by hand carries no marker and is never deleted.
+
+The launcher works by indirection instead. `omatheme launcher <verb>` forwards
+to the current theme's `command`, or to `omarchy-menu` when the theme declares
+none, so one keybinding covers every theme:
+
+```lua
+hl.unbind("SUPER + SPACE")
+o.bind("SUPER + SPACE", "Theme launcher", "omatheme launcher toggle")
+```
+
+Switching away stops the previous theme's launcher process.
+
+Nothing here restarts the shell: it watches `~/.config/omarchy/plugins/` with
+inotify and `shell.json` with a `FileView`, so plugin and config changes land
+live. The one shell key omatheme never restores from the baseline is plugin
+enablement (`plugins`, `disabledPlugins`) — the shell owns those.
+
 ## Commands
 
 | Command | Effect |
@@ -84,6 +127,7 @@ original value instead of inheriting it.
 | `omatheme sync` | Apply the current theme's profile without switching |
 | `omatheme hook [theme]` | Entry point for the Omarchy `theme-set` hook |
 | `omatheme install-hook` | Install this binary as that hook |
+| `omatheme launcher <verb>` | Forward to the current theme's launcher |
 | `omatheme new <name> --from <image>` | Scaffold a theme (colors, wallpaper, preview, profile) |
 | `omatheme doctor` | Report colour literals that will not follow a theme switch |
 
