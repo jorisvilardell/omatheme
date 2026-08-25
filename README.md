@@ -31,7 +31,7 @@ let omatheme carry the rest.
 ## Install
 
 ```bash
-git clone https://github.com/jorisdev/omatheme
+git clone https://github.com/jorisvilardell/omatheme
 cd omatheme
 cargo build --release
 install -Dm755 target/release/omatheme ~/.local/bin/omatheme
