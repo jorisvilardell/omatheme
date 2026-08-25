@@ -1,0 +1,22 @@
+[package]
+name = "omatheme"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Theme profiles for Omarchy: apply wallpaper, font, shell layout and per-theme commands alongside the native colour switch"
+license = "MIT"
+repository = "https://github.com/jorisdev/omatheme"
+readme = "README.md"
+keywords = ["omarchy", "hyprland", "theme", "quickshell", "linux"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+[profile.release]
+lto = true
+strip = true
