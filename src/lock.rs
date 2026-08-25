@@ -35,8 +35,15 @@ pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<b
         return Err(anyhow!("{} is not a directory", overlay.display()));
     }
 
+    // The clone is already ours for this theme, but the theme's files may have
+    // changed since — an author editing their overlay expects a re-apply to
+    // pick it up. copy_into only writes what differs, so this stays cheap.
     if owner.as_deref() == Some(loaded.theme.as_str()) {
-        return Ok(false);
+        let changed = copy_into(&overlay, &clone)?;
+        if changed {
+            runner.step(format!("refresh the lock overlay in {}", paths::tilde(&clone)));
+        }
+        return Ok(changed);
     }
     if clone.exists() && owner.is_none() {
         eprintln!(
