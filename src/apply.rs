@@ -6,6 +6,7 @@ use serde_json::Value as Json;
 
 use crate::paths;
 use crate::profile::LoadedProfile;
+use crate::settings::{Part, Settings};
 
 pub struct Runner {
     pub dry_run: bool,
@@ -73,7 +74,13 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
         }
     );
 
-    if let Some(wallpaper) = &loaded.profile.wallpaper {
+    let settings = Settings::load()?;
+    // A part switched off in ~/.config/omatheme/config.toml is treated as if
+    // the theme never declared it — so the Omarchy default is restored rather
+    // than the previous theme's leftovers.
+    let on = |part| settings.enabled(&loaded.theme, part);
+
+    if let Some(wallpaper) = &loaded.profile.wallpaper.as_ref().filter(|_| on(Part::Wallpaper)) {
         let image = loaded.asset(&wallpaper.default)?;
         let current = paths::current_state()?.join("background");
         let already = std::fs::read_link(&current)
@@ -89,7 +96,7 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
         }
     }
 
-    if let Some(font) = &loaded.profile.font {
+    if let Some(font) = &loaded.profile.font.as_ref().filter(|_| on(Part::Font)) {
         let current = Command::new("omarchy-font-current").output().ok();
         let current = current
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -99,16 +106,16 @@ pub fn apply_profile(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
         }
     }
 
-    apply_shell(loaded, runner)?;
-    apply_menu(loaded, runner)?;
+    apply_shell(loaded, runner, on(Part::Shell))?;
+    apply_menu(loaded, runner, on(Part::Menu))?;
 
     // No shell restart anywhere in here: the shell watches
     // ~/.config/omarchy/plugins/ with inotify, shell.json and the menu
     // extension with FileView.watchChanges. Everything lands live.
-    crate::lock::apply(loaded, runner)?;
-    crate::launcher::apply(loaded, runner)?;
+    crate::lock::apply(loaded, runner, on(Part::Lock))?;
+    crate::launcher::apply(loaded, runner, on(Part::Launcher))?;
 
-    if let Some(commands) = &loaded.profile.commands {
+    if let Some(commands) = &loaded.profile.commands.as_ref().filter(|_| on(Part::Commands)) {
         for command in &commands.post {
             runner.step(format!("run (post) {command}"));
             if runner.dry_run {
@@ -136,7 +143,7 @@ const RUNTIME_OWNED_KEYS: &[&str] = &["plugins", "disabledPlugins"];
 
 /// `shell.json` is patched from an untouched baseline, so switching themes
 /// never accumulates the previous theme's overrides.
-fn apply_shell(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
+fn apply_shell(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<()> {
     let config = paths::omarchy_config()?;
     let live = config.join("shell.json");
     let base = config.join("shell.base.json");
@@ -189,7 +196,7 @@ fn apply_shell(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
         }
     }
 
-    if let Some(shell) = &loaded.profile.shell {
+    if let Some(shell) = &loaded.profile.shell.as_ref().filter(|_| enabled) {
         for (dotted, value) in &shell.patch {
             set_dotted(&mut doc, dotted, toml_to_json(value)?)?;
         }
@@ -211,13 +218,13 @@ fn apply_shell(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
 }
 
 /// The launcher/menu extension follows the same baseline rule as `shell.json`.
-fn apply_menu(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
+fn apply_menu(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<()> {
     let live = paths::omarchy_config()?
         .join("extensions")
         .join("omarchy-menu.jsonc");
     let base = live.with_file_name("omarchy-menu.base.jsonc");
 
-    let source: PathBuf = match &loaded.profile.menu {
+    let source: PathBuf = match &loaded.profile.menu.as_ref().filter(|_| enabled) {
         Some(menu) => loaded.asset(&menu.extension)?,
         None => {
             // No menu in this profile: restore the baseline if we ever moved it.

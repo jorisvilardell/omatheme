@@ -119,6 +119,27 @@ inotify and `shell.json` with a `FileView`, so plugin and config changes land
 live. The one shell key omatheme never restores from the baseline is plugin
 enablement (`plugins`, `disabledPlugins`) — the shell owns those.
 
+## Taking only part of a theme
+
+A theme bundles what its author thinks belongs together. If you like a theme's
+colours but not its launcher, switch that part off in
+`~/.config/omatheme/config.toml`:
+
+```toml
+# Only for this theme.
+[themes.spiderverse]
+launcher = false
+lock = false
+
+# Or everywhere, for every theme.
+menu = false
+```
+
+Parts are `wallpaper`, `font`, `shell`, `menu`, `lock`, `launcher` and
+`commands`. All default to on, and a per-theme setting wins over the global
+one. A part switched off is treated as if the theme never declared it, so you
+get Omarchy's default rather than the previous theme's leftovers.
+
 ## Commands
 
 | Command | Effect |

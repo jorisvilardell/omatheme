@@ -5,6 +5,7 @@ mod lock;
 mod paths;
 mod profile;
 mod scaffold;
+mod settings;
 
 use std::path::PathBuf;
 use std::process::Command;

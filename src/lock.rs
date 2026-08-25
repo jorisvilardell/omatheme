@@ -22,11 +22,11 @@ const SOURCE_ID: &str = "omarchy.lock";
 ///
 /// Returns true when the lock plugin changed. The shell reloads it by itself —
 /// it watches ~/.config/omarchy/plugins/ with inotify.
-pub fn apply(loaded: &LoadedProfile, runner: &Runner) -> Result<bool> {
+pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<bool> {
     let clone = clone_dir()?;
     let owner = owner_of(&clone);
 
-    let Some(lock) = &loaded.profile.lock else {
+    let Some(lock) = &loaded.profile.lock.as_ref().filter(|_| enabled) else {
         return remove_if_ours(&clone, owner.as_deref(), runner);
     };
 

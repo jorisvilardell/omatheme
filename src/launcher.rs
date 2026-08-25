@@ -13,14 +13,15 @@ const DEFAULT_COMMAND: &str = "omarchy-menu";
 
 /// Install the theme's launcher and remember which command is current, so the
 /// keybinding can stay a single stable entry point.
-pub fn apply(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
+pub fn apply(loaded: &LoadedProfile, runner: &Runner, enabled: bool) -> Result<()> {
     let previous = current_command()?;
-    let command = match &loaded.profile.launcher {
+    let declared = loaded.profile.launcher.as_ref().filter(|_| enabled);
+    let command = match declared {
         Some(launcher) => launcher.command.clone(),
         None => DEFAULT_COMMAND.to_string(),
     };
 
-    if let Some(launcher) = &loaded.profile.launcher {
+    if let Some(launcher) = declared {
         if let Some(app) = &launcher.quickshell {
             let source = loaded.asset(&app.source)?;
             let target = paths::config_home()?.join("quickshell").join(&app.name);
@@ -84,10 +85,7 @@ pub fn apply(loaded: &LoadedProfile, runner: &Runner) -> Result<()> {
             .with_context(|| format!("writing {}", path.display()))?;
     }
 
-    let autostart = loaded
-        .profile
-        .launcher
-        .as_ref()
+    let autostart = declared
         .and_then(|launcher| launcher.autostart)
         .unwrap_or(false);
     if autostart && command != DEFAULT_COMMAND {
